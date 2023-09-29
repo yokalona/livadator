@@ -3,50 +3,111 @@
             [livadator.core :refer :all]
             [clojure.pprint :refer :all]))
 
+(defn dont
+  [val]
+  (not val))
+
 (deftest validate-value-test
-  (testing "Validate value with errors"
-    (is (empty? (validate-value 0 true int? false)))
-    (is (= [0] (validate-value false true int? false)))
-    (is (= [0 1] (validate-value false true [int? (partial < 0)] false)))
-    (is (= [0] (validate-value false true [int? (partial < 0)] true))))
-  (testing "Multiple"
-    (is (= [0] (validate-value [0 1 2 3 false] true int? false)))
-    (is (= [1 2] (validate-value [0 1 2 3 4 5] true [int? (partial > 2) (partial > 4)] false)))))
+  (testing "Validate single value"
+    (let [proceed-even-if-error false]
+      (is (= {} (validate-value 0 int? proceed-even-if-error)))
+      (is (= {:value "0" :validators [0]} (validate-value "0" int? proceed-even-if-error)))
+      (is (= {:value "0" :validators [0 1]} (validate-value "0" [int? (partial < 0)] proceed-even-if-error)))
+      (is (= {:value 0 :validators [1]} (validate-value 0 [int? (partial < 0)] proceed-even-if-error)))
+      (testing "If stop on first error - then only first validator will fail here"
+        (is (= {:value "0" :validators [0]} (validate-value "0" [int? (partial < 0)] (dont proceed-even-if-error)))))
+      (testing "If required field is missing it produces :missing validator failed"
+        (is (= {:value nil :validators [:missing]} (validate-value nil {:required? true :validators int?} proceed-even-if-error))))
+      (is (= {} (validate-value nil [int? (partial < 0)] proceed-even-if-error)))
+      (is (= {:value 0 :validators [:singular]} (validate-value 0 {:multiple? true :validators int?} proceed-even-if-error)))))
+
+  (testing "Validate multiple values"
+    (let [proceed-even-if-error false]
+      (is (= [] (validate-value [0 1 2 3] {:multiple? true :validators int?} proceed-even-if-error)))
+      (is (= [{:value false :validators [0]}] (validate-value [0 1 2 3 false] {:multiple? true :validators int?} proceed-even-if-error)))
+      (is (= [{:value false :validators [0 1]}] (validate-value [0 1 2 3 false] {:multiple? true :validators [int? (partial <= 0)]} proceed-even-if-error)))
+      (is (= [{:value 3 :validators [1]}] (validate-value [0 1 2 3] {:multiple? true :validators [int? (partial >= 2)]} proceed-even-if-error)))
+      (is (= [{:value false :validators [0]}] (validate-value [0 1 2 3 false] {:multiple? true :validators [int? (partial <= 0)]} (dont proceed-even-if-error))))
+      (testing "Non multiple field will produce :multiple validator failed"
+        (is (= {:value [0 1 2 3] :validators [:multiple]} (validate-value [0 1 2 3] {:multiple? false :validators [int? (partial <= 0)]} (dont proceed-even-if-error)))))
+      (testing "Singular on multiple = :singular"
+        (is (= {:value 0 :validators [:singular]} (validate-value 0 {:multiple? true :validators int?} proceed-even-if-error)))))))
 
 (deftest validate-field-test
-  (testing ""
-    (is (empty? (validate-field {:a 1} :a {:a int?} true)))
-    (is (empty? (validate-field {:a 1} :a {:a [int? (partial < 0)]} true)))
-    (is (= {:a {:value 1 :validators [1]}} (validate-field {:a 1} :a {:a [int? (partial > 0)]} true)))
-    (is (= {:a {:value false :validators [0]}} (validate-field {:a false} :a {:a int?} true)))
-    (is (= {:a {:value false :validators [0]}} (validate-field {:a false} :a {:a [int? (partial < 0)]} true)))
-    (is (= {:a {:value false :validators [0 1]}} (validate-field {:a false} :a {:a [int? (partial < 0)]} false)))
-    (is (= {:a {:value [0 1 2 3 4 5] :validators [1 2]}} (validate-field {:a [0 1 2 3 4 5]} :a {:a [int? (partial > 2) (partial > 4)]} false)))))
+  (testing "Validate single value"
+    (let [proceed-even-if-error false]
+      (is (= {} (validate-field {:a 0} :a {:a int?} proceed-even-if-error)))
+      (is (= {:a {:value "0" :validators [0]}} (validate-field {:a "0"} :a {:a int?} proceed-even-if-error)))
+      (is (= {:a {:value "0" :validators [0 1]}} (validate-field {:a "0"} :a {:a [int? (partial < 0)]} proceed-even-if-error)))
+      (is (= {:a {:value 0 :validators [1]}} (validate-field {:a 0} :a {:a [int? (partial < 0)]} proceed-even-if-error)))
+      (testing "If stop on first error - then only first validator will fail here"
+        (is (= {:a {:value "0" :validators [0]}} (validate-field {:a "0"} :a {:a [int? (partial < 0)]} (dont proceed-even-if-error)))))
+      (testing "If required field is missing it produces :missing validator failed"
+        (is (= {:a {:value nil :validators [:missing]}} (validate-field {} :a {:a {:required? true :validators int?}} proceed-even-if-error))))
+      (is (= {} (validate-field {} :a {:a [int? (partial < 0)]} proceed-even-if-error)))))
 
-(def config-schema {:name  string?
-                    :token string?
-                    :async []})
-
-(println (validate {:a [0 1 2 3 4 5]} :a {:a [int? (partial > 2) (partial > 4)]}))
+  (testing "Validate multiple values"
+    (let [proceed-even-if-error false]
+      (is (= {} (validate-field {:a [0 1 2 3]} :a {:a {:multiple? true :validators int?}} proceed-even-if-error)))
+      (is (= {:a [{:value false :validators [0]}]} (validate-field {:a [0 1 2 3 false]} :a {:a {:multiple? true :validators int?}} proceed-even-if-error)))
+      (is (= {:a [{:value false :validators [0 1]}]} (validate-field {:a [0 1 2 3 false]} :a {:a {:multiple? true :validators [int? (partial <= 0)]}} proceed-even-if-error)))
+      (is (= {:a [{:value 3 :validators [1]}]} (validate-field {:a [0 1 2 3]} :a {:a {:multiple? true :validators [int? (partial >= 2)]}} proceed-even-if-error)))
+      (is (= {:a [{:value false :validators [0]}]} (validate-field {:a [0 1 2 3 false]} :a {:a {:multiple? true :validators [int? (partial <= 0)]}} (dont proceed-even-if-error))))
+      (testing "Non multiple field will produce :multiple validator failed"
+        (is (= {:a {:value [0 1 2 3] :validators [:multiple]}} (validate-field {:a [0 1 2 3]} :a {:a {:multiple? false :validators [int? (partial <= 0)]}} (dont proceed-even-if-error))))))))
 
 (deftest validate-test
   (testing ""
-    (println (validate {:a [0 1 2 3 4 5]} {:a [int? (partial > 2) (partial > 4)]} false))
+    (pprint (validate {:a-1  1
+                       :a-2  ""
+                       :a-3  []
+                       :a-6  [0 1 2 3]
+                       :a-7  [:a :b :c "a" "b" "c"]
+                       :a-8  {:a-8-1 1
+                              :a-8-2 "2"
+                              :a-8-3 [{:a-8-3-1 true}]}
+                       :a-9  []
+                       :a-10 0}
+                      {:a-1  int?
+                       :a-2  [string?]
+                       :a-3  {:multiple? true :validators int?}
+                       :a-4  {:required? false :validators int?}
+                       :a-5  {:required? true :validators string?}
+                       :a-6  [int? (partial < -1)]
+                       :a-7  {:multiple?  true
+                              :validators (fn [val] (case (keyword val)
+                                                      :a true
+                                                      :b false
+                                                      true))}
+                       :a-8  {:validators {:a-8-1 int?
+                                           :a-8-2 string?
+                                           :a-8-3 {:multiple?  true
+                                                   :validators {:a-8-3-1 boolean?
+                                                                :a-8-3-2 {:required?  true
+                                                                          :validators int?}}}}}
+                       :a-9  {:multiple? false :validators int?}
+                       :a-10 {:multiple? true :validators int?}}
+                      false
+                      false))))
 
-    (pprint
-      (validate {:name              "123"
-                 :commands          [{:name "1234" :description "123"}
-                                     {:name "abc" :description "37373"}]
-                 :webhook           {:drop-pending-updates? true
-                                     :certificate           "1234"
-                                     :hook-url              "bla"}}
-                {:name              string?
-                 :async?            {:required? true :validator boolean?}
-                 :short-description [string? #(<= (count %) 200)]
-                 :description       [string? #(<= (count %) 800)]
-                 :commands          [{:name        {:required? true
-                                                    :validator string?}
-                                      :description string?}]
-                 :webhook           {:drop-pending-updates? boolean?
-                                     :certificate           string?
-                                     :hook-url              string?}}))))
+(deftest print-schema-test
+  (testing ""
+    (pprint (validate-schema {:a-1  int?
+                              :a-2  [string?]
+                              :a-3  {:multiple? true :validators int?}
+                              :a-4  {:required? false :validators int?}
+                              :a-5  {:required? true :validators string?}
+                              :a-6  [int? (partial > -1)]
+                              :a-7  {:multiple?  true
+                                     :validators (fn [val] (case (keyword val)
+                                                             :a true
+                                                             :b false
+                                                             true))}
+                              :a-8  {:validators {:a-8-1 int?
+                                                  :a-8-2 string?
+                                                  :a-8-3 {:multiple?  true
+                                                          :validators {:a-8-3-1 boolean?
+                                                                       :a-8-3-2 {:required?  true
+                                                                                 :validators int?}}}}}
+                              :a-9  {:multiple? false :validators int?}
+                              :a-10 {:multiple? true :validators int?}}))))
