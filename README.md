@@ -76,7 +76,18 @@ value will undergo validation against this schema.
 _in other words_
 
 >The schema, in its own right, possesses the inherent capability to function as a validator. This implies that when the schema is designated as the validation criterion for a specific key, the value associated with that key is subjected to a rigorous validation process, scrutinized against the standards and constraints outlined within the schema itself. In essence, the schema acts as a gatekeeper, ensuring that the value adheres strictly to the rules and structure it prescribes."
+
 <div style="text-align: right"><i>chatGPT</i></div>
+
+
+_in even other words out of this world(don't read unless bored)_
+
+>At its core, the schema emerges as a linchpin in the intricate web of data validation. Its inherent capability to don the mantle of a validator is akin to bestowing a watchful guardian upon each piece of data. When the schema is anointed as the vanguard for a specific key, it enters into a meticulous dance of scrutiny and validation.
+><sup>This validation process is more than a perfunctory check; it represents a comprehensive evaluation of the value at hand. The schema's discerning eye leaves no room for oversight, meticulously assessing each attribute and characteristic against the exacting standards encapsulated within its own structure. It's akin to a diligent inspector, combing through every detail to ensure the value complies with the defined parameters.</sup>
+><sup><sup>In practical terms, the schema stands as a sentinel, ensuring data fidelity and precision. It serves as an architect of data integrity, constructing a fortress of rules and regulations that data must pass through unscathed. The schema's role is akin to that of a gatekeeper at the entrance to a secure realm, allowing only data that meets the stringent requirements to pass through.</sup></sup>
+><sup><sup><sup>This gatekeeper role extends beyond mere validation; it encompasses the preservation of data quality and consistency. With each validation, the schema contributes to the broader goal of maintaining structured data's reliability. It facilitates seamless data exchange, mitigates the risk of data anomalies, and provides a solid foundation upon which data-driven applications can thrive.</sup></sup></sup>
+><sup><sup><sup><sup>In a data-driven world where information is currency, the schema serves as a valuable asset, ensuring that data retains its intrinsic value and remains a reliable cornerstone for decision-making and innovation.</sup></sup></sup></sup>
+<div style="text-align: right"><i>chatGPT</i><sup><sup>who would've guess, huh?</sup></sup></div>
 
 #### Examples
 ```clojure
