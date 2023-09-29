@@ -1,5 +1,7 @@
 # livadator
 
+[![Build Status][gh-actions-badge]][gh-actions]
+
 _**[li-va-datór]**_ - library for data structure validation.
 
 >Schema-driven validation entails that each structure can incorporate yet another validating structure.
@@ -229,3 +231,6 @@ Cons:
 5. Add context, for validations like "If key presents then this key should be also present"
 
 ## Happy using
+
+[gh-actions-badge]: https://github.com/yokalona/livadator/workflows/ci/badge.svg
+[gh-actions]: https://github.com/yokalona/livadator/actions
