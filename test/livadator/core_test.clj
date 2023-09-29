@@ -90,24 +90,4 @@
                       false
                       false))))
 
-(deftest print-schema-test
-  (testing ""
-    (pprint (validate-schema {:a-1  int?
-                              :a-2  [string?]
-                              :a-3  {:multiple? true :validators int?}
-                              :a-4  {:required? false :validators int?}
-                              :a-5  {:required? true :validators string?}
-                              :a-6  [int? (partial > -1)]
-                              :a-7  {:multiple?  true
-                                     :validators (fn [val] (case (keyword val)
-                                                             :a true
-                                                             :b false
-                                                             true))}
-                              :a-8  {:validators {:a-8-1 int?
-                                                  :a-8-2 string?
-                                                  :a-8-3 {:multiple?  true
-                                                          :validators {:a-8-3-1 boolean?
-                                                                       :a-8-3-2 {:required?  true
-                                                                                 :validators int?}}}}}
-                              :a-9  {:multiple? false :validators int?}
-                              :a-10 {:multiple? true :validators int?}}))))
+(println (validate {:key [0 1 2 3 4]} {:key {:multiple? true :validators [int? (partial >= 2)]}} false false))
