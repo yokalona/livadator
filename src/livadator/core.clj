@@ -1,7 +1,6 @@
-(ns livadator.core
-  (:require [livadator.schema :refer [find-schema schema-schema]]))
+(ns livadator.core)
 
-(declare validate validate-value)
+(declare  validate validate-value validate-schema)
 
 (defn- -sequential
   [element]
@@ -14,6 +13,41 @@
 (defmacro erroneous?
   [data action otherwise]
   `(if-not (empty? ~data) ~action ~otherwise))
+
+(def ^:dynamic *schemas* {})
+
+(defn schema-schema
+  [validate-schema]
+  {:required?  {:required?  false
+                :multiple?  false
+                :validators boolean?}
+   :multiple?  {:required?  false
+                :multiple?  false
+                :validators boolean?}
+   :validators {:required?  true
+                :validators (fn [validators]
+                              (if (map? validators)
+                                (validate-schema validators)
+                                (not (nil? validators))))}})
+
+(defn register-schema
+  [alias schema]
+  (if-not (contains? *schemas* alias)
+    (let [validation (validate-schema schema)]
+      (erroneous? validation (alter-var-root *schemas* assoc schema) validation))
+    *schemas*))
+
+(defn unregister-schema
+  [alias]
+  (alter-var-root *schemas* dissoc alias))
+
+(defn unregister-all
+  []
+  (alter-var-root *schemas* (fn [_] {})))
+
+(defn find-schema
+  [alias]
+  (alias *schemas*))
 
 (defn- -validate-value
   [value required? stop-on-first-error?]
@@ -72,7 +106,6 @@
   (let [failed (validate-value (get coll field) (field schema) stop-on-first-error?)]
     (erroneous? failed {field failed} {})))
 
-(declare validate-schema)
 (defn- -validate
   [coll schema stop-on-first-error? validate-schema? ignore-not-in-schema?]
   (let [schema (if (map? schema) schema (find-schema schema))
