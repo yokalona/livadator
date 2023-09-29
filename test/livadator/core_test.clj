@@ -1,93 +1,56 @@
 (ns livadator.core-test
   (:require [clojure.test :refer :all]
             [livadator.core :refer :all]
-            [clojure.pprint :refer :all]))
+            [clojure.pprint :refer :all])
+  (:import (livadator.core Options)))
 
 (defn dont
   [val]
   (not val))
 
-(deftest validate-value-test
-  (testing "Validate single value"
-    (let [proceed-even-if-error false]
-      (is (= {} (validate-value 0 int? proceed-even-if-error)))
-      (is (= {:value "0" :validators [0]} (validate-value "0" int? proceed-even-if-error)))
-      (is (= {:value "0" :validators [0 1]} (validate-value "0" [int? (partial < 0)] proceed-even-if-error)))
-      (is (= {:value 0 :validators [1]} (validate-value 0 [int? (partial < 0)] proceed-even-if-error)))
-      (testing "If stop on first error - then only first validator will fail here"
-        (is (= {:value "0" :validators [0]} (validate-value "0" [int? (partial < 0)] (dont proceed-even-if-error)))))
-      (testing "If required field is missing it produces :missing validator failed"
-        (is (= {:value nil :validators [:missing]} (validate-value nil {:required? true :validators int?} proceed-even-if-error))))
-      (is (= {} (validate-value nil [int? (partial < 0)] proceed-even-if-error)))
-      (is (= {:value 0 :validators [:singular]} (validate-value 0 {:multiple? true :validators int?} proceed-even-if-error)))))
-
-  (testing "Validate multiple values"
-    (let [proceed-even-if-error false]
-      (is (= [] (validate-value [0 1 2 3] {:multiple? true :validators int?} proceed-even-if-error)))
-      (is (= [{:value false :validators [0]}] (validate-value [0 1 2 3 false] {:multiple? true :validators int?} proceed-even-if-error)))
-      (is (= [{:value false :validators [0 1]}] (validate-value [0 1 2 3 false] {:multiple? true :validators [int? (partial <= 0)]} proceed-even-if-error)))
-      (is (= [{:value 3 :validators [1]}] (validate-value [0 1 2 3] {:multiple? true :validators [int? (partial >= 2)]} proceed-even-if-error)))
-      (is (= [{:value false :validators [0]}] (validate-value [0 1 2 3 false] {:multiple? true :validators [int? (partial <= 0)]} (dont proceed-even-if-error))))
-      (testing "Non multiple field will produce :multiple validator failed"
-        (is (= {:value [0 1 2 3] :validators [:multiple]} (validate-value [0 1 2 3] {:multiple? false :validators [int? (partial <= 0)]} (dont proceed-even-if-error)))))
-      (testing "Singular on multiple = :singular"
-        (is (= {:value 0 :validators [:singular]} (validate-value 0 {:multiple? true :validators int?} proceed-even-if-error)))))))
-
-(deftest validate-field-test
-  (testing "Validate single value"
-    (let [proceed-even-if-error false]
-      (is (= {} (validate-field {:a 0} :a {:a int?} proceed-even-if-error)))
-      (is (= {:a {:value "0" :validators [0]}} (validate-field {:a "0"} :a {:a int?} proceed-even-if-error)))
-      (is (= {:a {:value "0" :validators [0 1]}} (validate-field {:a "0"} :a {:a [int? (partial < 0)]} proceed-even-if-error)))
-      (is (= {:a {:value 0 :validators [1]}} (validate-field {:a 0} :a {:a [int? (partial < 0)]} proceed-even-if-error)))
-      (testing "If stop on first error - then only first validator will fail here"
-        (is (= {:a {:value "0" :validators [0]}} (validate-field {:a "0"} :a {:a [int? (partial < 0)]} (dont proceed-even-if-error)))))
-      (testing "If required field is missing it produces :missing validator failed"
-        (is (= {:a {:value nil :validators [:missing]}} (validate-field {} :a {:a {:required? true :validators int?}} proceed-even-if-error))))
-      (is (= {} (validate-field {} :a {:a [int? (partial < 0)]} proceed-even-if-error)))))
-
-  (testing "Validate multiple values"
-    (let [proceed-even-if-error false]
-      (is (= {} (validate-field {:a [0 1 2 3]} :a {:a {:multiple? true :validators int?}} proceed-even-if-error)))
-      (is (= {:a [{:value false :validators [0]}]} (validate-field {:a [0 1 2 3 false]} :a {:a {:multiple? true :validators int?}} proceed-even-if-error)))
-      (is (= {:a [{:value false :validators [0 1]}]} (validate-field {:a [0 1 2 3 false]} :a {:a {:multiple? true :validators [int? (partial <= 0)]}} proceed-even-if-error)))
-      (is (= {:a [{:value 3 :validators [1]}]} (validate-field {:a [0 1 2 3]} :a {:a {:multiple? true :validators [int? (partial >= 2)]}} proceed-even-if-error)))
-      (is (= {:a [{:value false :validators [0]}]} (validate-field {:a [0 1 2 3 false]} :a {:a {:multiple? true :validators [int? (partial <= 0)]}} (dont proceed-even-if-error))))
-      (testing "Non multiple field will produce :multiple validator failed"
-        (is (= {:a {:value [0 1 2 3] :validators [:multiple]}} (validate-field {:a [0 1 2 3]} :a {:a {:multiple? false :validators [int? (partial <= 0)]}} (dont proceed-even-if-error))))))))
+(deftest validate-schema-test
+  (testing "Empty schema has no error"
+    (is (= {} (validate-schema {}))))
+  (testing "Empty schema for a key should have 'validators' block"
+    (is (= {:key {:validators {:value nil, :validators [:missing]}}} (validate-schema {:key {}}))))
+  (testing "But empty vector as a validators is ok"
+    (is (= {} (validate-schema {:key {:validators []}}))))
+  (testing "Valid validators"
+    (is (= {} (validate-schema {:key int?})))
+    (is (= {} (validate-schema {:key {:validators int?}})))
+    (is (= {} (validate-schema {:key {:validators [int?]}}))))
+  (testing "Required? and Missing? are boolean and not required"
+    (is (= {} (validate-schema {:key {:required?  true
+                                      :validators []}})))
+    (is (= {} (validate-schema {:key {:multiple?  true
+                                      :validators []}})))
+    (is (= {:key {:required? {:validators [0]
+                              :value      :invalid-value}}}
+           (validate-schema {:key {:required?  :invalid-value
+                                   :validators []}})))
+    (is (= {:key {:multiple? {:validators [0]
+                              :value      :invalid-value}}}
+           (validate-schema {:key {:multiple?  :invalid-value
+                                   :validators []}})))
+    (is (= {:key {:multiple? {:validators [0]
+                              :value      :invalid-multiple}
+                  :required? {:validators [0]
+                              :value      :invalid-required}}}
+           (validate-schema {:key {:multiple?  :invalid-multiple
+                                   :required?  :invalid-required
+                                   :validators []}}))))
+  (testing "Excess keys are not allowed for schema"
+    (is (= {:key {:unknown-keys {:excess-key :value}}}
+           (validate-schema {:key {:validators []
+                                   :excess-key :value}})))))
 
 (deftest validate-test
-  (testing ""
-    (pprint (validate {:a-1  1
-                       :a-2  ""
-                       :a-3  []
-                       :a-6  [0 1 2 3]
-                       :a-7  [:a :b :c "a" "b" "c"]
-                       :a-8  {:a-8-1 1
-                              :a-8-2 "2"
-                              :a-8-3 [{:a-8-3-1 true}]}
-                       :a-9  []
-                       :a-10 0}
-                      {:a-1  int?
-                       :a-2  [string?]
-                       :a-3  {:multiple? true :validators int?}
-                       :a-4  {:required? false :validators int?}
-                       :a-5  {:required? true :validators string?}
-                       :a-6  [int? (partial < -1)]
-                       :a-7  {:multiple?  true
-                              :validators (fn [val] (case (keyword val)
-                                                      :a true
-                                                      :b false
-                                                      true))}
-                       :a-8  {:validators {:a-8-1 int?
-                                           :a-8-2 string?
-                                           :a-8-3 {:multiple?  true
-                                                   :validators {:a-8-3-1 boolean?
-                                                                :a-8-3-2 {:required?  true
-                                                                          :validators int?}}}}}
-                       :a-9  {:multiple? false :validators int?}
-                       :a-10 {:multiple? true :validators int?}}
-                      false
-                      false))))
-
-(println (validate {:key [0 1 2 3 4]} {:key {:multiple? true :validators [int? (partial >= 2)]}} false false))
+  (testing "Validating with invalid schema is not possible"
+    (is (= {:schema-invalid {:key {:validators {:value nil, :validators [:missing]}}}} (validate {} {:key {}})))
+    (testing "Even for nested keys"
+      (is (= {:schema-invalid {:key {:validators {:value      {:another-key {}}
+                                                  :validators [{:another-key {:validators {:value nil,
+                                                                                           :validators [:missing]}}}]}}}}
+             (validate {} {:key {:validators {:another-key {}}}}))))
+    (testing "Valid validators"
+      (is (= {})))))

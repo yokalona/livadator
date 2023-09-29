@@ -24,15 +24,15 @@ Describes a map containing a key `:key` which is of type **integer** and is less
 ```clojure
 {:key {:validators (fn [val] (not (= :b (keyword val))))}}
 ```
-Describes a map containing a key `:key` which value as a keyword is **not** equal _:b_
+Describes a map containing a key `:key` whereas the value, when treated as a keyword, must not equal :b
 
 ## Required? and multiple?
 Each key can have special validators: **required?** and **multiple?**.
 
 Required keys are mandatory and can not be absent from validating map.
 However multiple keys are a bit different:
-* If key is multiple(:multiple? true) - it cannot be singular, i.e. have only one value.
-* If key is singular(:multiple false) - it cannot have multiple values, i.e. the value should be only one
+* If key is multiple(:multiple? true) -  it cannot have just one value
+* If key is singular(:multiple false) - it cannot have multiple values; only one value is allowed
 * If nothing is said about the key - it can be either multiple or singular
 
 #### Examples
@@ -62,7 +62,7 @@ _in other words_
 ```clojure
 {:key {:validators {:another-key int?}}}
 ```
-Describes a map containing a key `:key` which is also a map containing a key `:another-key` of type map:
+Describes a map containing a key `:key` which is also a map containing a key `:another-key` of type integer:
 
 `{:key {:another-key 1}}` is a valid map for that schema
 
@@ -74,9 +74,10 @@ If a key is marked as **multiple?** it means that all the values linked to that 
 {:key {:multiple? true
        :validators {:another-key int?}}}
 ```
-Describes a map containing a multiple key `key` and every element of that key is correct against `{:another-key int?}` schema.
+Describes a map containing a multiple key `key` and every element of that key must adhere to the `{:another-key int?}` schema:
 
-`{:key [{:another-key 1} {:another-key 2}]}` is a valid map for that schema
+`{:key [{:another-key 1} 
+        {:another-key 2}]}` is a valid map for that schema
 
 ## Schema of schemas
 
