@@ -21,9 +21,9 @@
    :validators {:required?  true
                 :validators (fn [validators]
                               (if (map? validators)
-                                (validate-schema validators)
+                                (let [validation (validate-schema validators)]
+                                  (erroneous? validation validation true))
                                 true))}})
-
 
 (defn- -validate-value-exact
   [value required? options]

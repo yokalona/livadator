@@ -5,6 +5,17 @@ _**[li-va-datór]**_ - library for data structure validation.
 >Schema-driven validation entails that each structure can incorporate yet another validating structure.
 <div style="text-align: right"><i>chatGPT</i></div>
 
+## Usage
+**in REPL**
+```clojure
+(require '[livadator.core :as livadator])
+```
+**in application**
+```clojure
+(ns my-app.core
+  (:require [livadator.core :as livadator]))
+```
+
 ## Schema
 
 It's a data structure designed to confirm correctness and store detailed information about an object. It ensures that the object follows specific rules and formatting. In essence, it acts as a **validator** and information container.
@@ -25,6 +36,13 @@ Describes a map containing a key `:key` which is of type **integer** and is less
 {:key {:validators (fn [val] (not (= :b (keyword val))))}}
 ```
 Describes a map containing a key `:key` whereas the value, when treated as a keyword, must not equal :b
+
+## Validators
+Validator is a function, that is executed against values to check if value is correct or not.
+If validator returns **true** - then the **value** is correct.
+If validator returns anything else of **true** then there are two possibilities:
+1. If returned value is **false** then the livadatór will use an **index** of this validator in output
+2. Any other return value, and **thrown exception message** will be used instead of the index in the livadatór output.
 
 ## Required? and multiple?
 Each key can have special validators: **required?** and **multiple?**.
@@ -84,17 +102,19 @@ Describes a map containing a multiple key `key` and every element of that key mu
 Using the same livadator schema one can describe schema of all schemas:
 
 ```clojure
-{:required?  {:required?  false
-              :multiple?  false
-              :validators boolean?}
- :multiple?  {:required?  false
-              :multiple?  false
-              :validators boolean?}
- :validators {:required?  true
-              :validators (fn [validators]
-                            (if (map? validators)
-                              (validate-schema validators)
-                              (not (nil? validators))))}}
+(def schema-schema
+  {:required?  {:required?  false
+                :multiple?  false
+                :validators boolean?}
+   :multiple?  {:required?  false
+                :multiple?  false
+                :validators boolean?}
+   :validators {:required?  true
+                :validators (fn [validators]
+                              (if (map? validators)
+                                (let [validation (validate-schema validators)]
+                                  (erroneous? validation validation true))
+                                true))}})
 ```
 
 * **required?** is not actually required, is singular and should be boolean.
@@ -165,20 +185,18 @@ There are two very special modes:
                                                               :validators int?}}}}}
            :a-9  {:multiple? false :validators int?}
            :a-10 {:multiple? true :validators int?}}
-          (dont stop-on-first-error?)
-          (dont ignore-not-in-schema?))
+          (Options. (dont stop-on-first-error?) (dont ignore-not-in-schema?)))
 
 ;=>
 {:a-5  {:value      nil,
         :validators [:missing]},
- :a-8
- {:value      {:a-8-1 1,
-               :a-8-2 "2",
-               :a-8-3 [{:a-8-3-1 true}]},
-  :validators {:a-8-3
-               [{:value      {:a-8-3-1 true},
-                 :validators {:a-8-3-2 {:value      nil,
-                                        :validators [:missing]}}}]}},
+ :a-8  {:value      {:a-8-1 1,
+                     :a-8-2 "2",
+                     :a-8-3 [{:a-8-3-1 true}]},
+        :validators {:a-8-3
+                     [{:value      {:a-8-3-1 true},
+                       :validators {:a-8-3-2 {:value      nil,
+                                              :validators [:missing]}}}]}},
  :a-10 {:value 0, :validators [:singular]},
  :a-9  {:value [], :validators [:multiple]},
  :a-7  [{:value :b, :validators [0]}
@@ -190,5 +208,24 @@ There are two very special modes:
 * _**:a-8**_ failed because it's value, nested map failed for key `:a-8-3-2` which is missing and required
 * _**:a-9**_ failed because expected singular, but was provided multiple
 * _**:a-10**_ failed because expected multiple values
+
+## Pros and Cons
+Pros:
+1. It's simple
+2. It's easy
+3. ????
+4. Use it already?
+
+Cons:
+1. There are tons of such libraries already
+
+### Future plans
+1. Publish this into clojars, duh!
+2. Schema registry and schema aliases
+3. Add more options, such as:
+3.1 Parallel execution
+3.2 Complex validation
+4. Add cool looking logs and several levels of logging
+5. Add context, for validations like "If key presents then this key should be also present"
 
 ## Happy using
