@@ -4,13 +4,9 @@
             [clojure.pprint :refer :all])
   (:import (livadator.core Options)))
 
-(defn dont
-  [val]
-  (not val))
-
 (deftest validate-schema-test
   (testing "Empty schema has no error"
-    (is (= {} (validate-schema {}))))
+    (is (= {:key {:validators {:value {}, :validators [:empty]}}} (validate-schema {}))))
   (testing "Empty schema for a key should have 'validators' block"
     (is (= {:key {:validators {:value nil, :validators [:missing]}}} (validate-schema {:key {}}))))
   (testing "But empty vector as a validators is ok"
@@ -82,7 +78,7 @@
                   {:validators [2] :value 3}]}
            (validate {:key [-3 -2 -1 0 1 2 3]}
                      {:key [int? (partial < 2) (partial > 0)]}
-                     (Options. false false)))))
+                     (Options. false false true)))))
   (testing "Nested key validation"
     (is (= {} (validate {:key {:another-key 1}} {:key {:validators {:another-key int?}}})))
     (is (= {} (validate {:key {:another-key "1"}} {:key {:validators {:another-key string?}}})))
@@ -110,3 +106,89 @@
     (testing "If no multiple? key might be either way"
       (is (= {} (validate {:key [0 1 2 3]} {:key {:validators int?}})))
       (is (= {} (validate {:key 0} {:key {:validators int?}}))))))
+
+(deftest validate-value-test
+  (testing "Multiple"
+    (is (= [] (validate [1 2 3] {:validators int?})))
+    (is (= [] (validate [1 2 3] {:validators [int?]})))
+    (is (= [{:value 1 :validators [1]}]
+           (validate [1 2 3] {:validators [int? (partial < 2)]})))
+    (is (= [{:value 1 :validators [1]}
+            {:value 2 :validators [1]}]
+           (validate [1 2 3] {:validators [int? (partial < 2)]} (Options. false true true))))
+    (is (= [{:value 1 :validators [1]}
+            {:value 2 :validators [1]}]
+           (validate [1 2 3] {:validators [int? (partial < 2)]} (Options. false true true)))))
+  (testing "Singular"
+    (is (= {} (validate 1 {:validators int?})))
+    (is (= {:value 2 :validators [0]} (validate 2 {:validators (partial < 2)})))))
+
+(deftest complex-validators-test
+  (testing "message"
+    (is (= {:value :invalid :validators ["this value is invalid"]}
+           (validate :invalid {:validators (fn [value] (str "this value is " (name value)))}))))
+  (testing "exceptions"
+    (is (= {:value :invalid :validators ["exception: :invalid"]}
+           (validate :invalid {:validators (fn [value] (throw (RuntimeException. (str "exception: " value))))})))))
+
+(deftest alias-test
+  (testing "register alias"
+    (is (= {} (register-schema :correct-schema {:key int?})))
+    (is (= {:key int?} (find-schema :correct-schema))))
+  (testing "invalid schema cannot be registered"
+    (is (= {:schema-invalid {:key {:validators {:validators [:missing]
+                                                :value      nil}}}}
+           (register-schema :invalid-schema {:key {}})))
+    (is (nil? (find-schema :invalid-schema))))
+  (testing "can delete schema"
+    (is (= {:key int?} (find-schema :correct-schema)))
+    (unregister-schema :correct-schema)
+    (is (nil? (find-schema :correct-schema))))
+  (testing "can validate by alias"
+    (register-schema :schema {:key int?})
+    (is (= {} (validate {:key 1} :schema))))
+  (testing "validation by missing schema in registry produces specific error"
+    (is (= {:schema-invalid :missing} (validate {:key 1} :not-existing))))
+  (testing "nested aliases"
+    (reset-schemas)
+    (is (= {:schema-invalid {:key {:validators {:validators [{:schema-invalid :missing}]
+                                                :value      :nested-schema}}}}
+           (validate {:key {:nested-key 1}} {:key {:validators :nested-schema}})))
+    (register-schema :nested-schema {:nested-key int?})
+    (register-schema :schema {:key {:validators :nested-schema}})
+    (is (= {} (validate {:key {:nested-key 1}} :schema)))
+    (is (= {:key {:validators {:nested-key {:validators [0]
+                                            :value      "1"}}
+                  :value      {:nested-key "1"}}}
+           (validate {:key {:nested-key "1"}} :schema)))
+    (testing "as aslias as not, same err"
+      (is (= (validate {:key {:nested-key "1"}} :schema)
+             (validate {:key {:nested-key "1"}} {:key {:validators {:nested-key int?}}}))))
+    (testing "cant even register non existing nested alias"
+      (reset-schemas)
+      (is (= {:schema-invalid {:key {:validators {:validators [{:schema-invalid :missing}]
+                                                  :value      :nested-schema}}}}
+             (register-schema :schema {:key {:validators :nested-schema}}))))))
+
+
+(deftest options-test
+  (testing "Stop on first error"
+    (is (= [{:value 0 :validators [0]}
+            {:value 1 :validators [0]}]
+           (validate [0 1 2 3] {:validators (partial < 1)} (Options. false true true))))
+    (is (= [{:value 0 :validators [0]}]
+           (validate [0 1 2 3] {:validators (partial < 1)} (Options. true true true)))))
+  (testing "Ignore excess keys"
+    (is (= {} (validate {:a 1 :b 2} {:a int?} (Options. true true true))))
+    (is (= {:unknown-keys {:b 2}} (validate {:a 1 :b 2} {:a int?} (Options. true false true)))))
+  (testing "verbose"
+    (is (= [{:value 0 :validators [0]}
+            {:value 1 :validators [0]}]
+           (validate [0 1 2 3] {:validators (partial < 1)} (Options. false true true))))
+    (is (false? (validate [0 1 2 3] {:validators (partial < 1)} (Options. false true false))))
+    (is (true? (validate [0 1 2 3] {:validators int?} (Options. false true false))))))
+
+(deftest valid?-test
+  (testing "valid is just true-false"
+    (is (false? (valid? [0 1 2 3] {:validators (partial < 1)})))
+    (is (true? (valid? [0 1 2 3] {:validators int?})))))

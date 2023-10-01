@@ -1,4 +1,4 @@
-(defproject livadator "0.1.0-SNAPSHOT"
+(defproject io.github.yokalona/livadator "1.0.0"
   :description "Schema driven validator, validates maps according to provided schema"
   :url "https://github.com/yokalona/livadator"
   :license {:name "EPL-2.0 OR GPL-2.0-or-later WITH Classpath-exception-2.0"
