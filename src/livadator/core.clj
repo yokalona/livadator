@@ -2,7 +2,7 @@
   "Schema-driven validation entails that each structure can incorporate yet another validating structure."
   (:gen-class))
 
-(declare -validate -validate-value validate-schema)
+(declare -validate -validate-value validate-schema find-schema)
 
 (def ^:dynamic ^:private *schemas* {})
 
@@ -11,36 +11,13 @@
   (alter-var-root (var *schemas*) assoc alias schema)
   {})
 
-(defrecord Options
-  [stop-on-first-error? ignore-excess-keys? verbose?])
-
 (defn- -sequential [element] (if (sequential? element) element [element]))
 
 (defn- -proceed [val stop?] (if stop? (reduced val) val))
 
-(defmacro erroneous? [data action otherwise] `(if-not (empty? ~data) ~action ~otherwise))
+(defmacro ^:private erroneous? [data action otherwise] `(if-not (empty? ~data) ~action ~otherwise))
 
-(defn register-schema
-  "Register `schema` in a registry, it then can be access via provided `alias`"
-  [alias schema]
-  (let [schema-validation (validate-schema schema)]
-    (erroneous? schema-validation {:schema-invalid schema-validation} (-register-schema alias schema))))
-
-(defn unregister-schema
-  "Unregisters `schema` from registry making it unavailable"
-  [alias]
-  (alter-var-root (var *schemas*) dissoc alias))
-
-(defn find-schema
-  "Finds `schema` in schema registry"
-  [alias]
-  (alias *schemas*))
-
-(defn reset-schemas
-  []
-  (alter-var-root (var *schemas*) {}))
-
-(def schema-schema
+(def ^:private schema-schema
   {:required?  {:required?  false
                 :multiple?  false
                 :validators boolean?}
@@ -61,17 +38,16 @@
   (fn [acc index validator]
     (if (nil? value)
       (if required? [:missing] [])
-      (try
-        (cond
-          (map? validator) (-validate value validator options)
-          (keyword? validator) (-validate value (find-schema validator) options)
-          :else (let [valid (validator value)]
-                  (if (boolean? valid)
-                    (if-not valid
-                      (-proceed (conj acc index) (:stop-on-first-error? options))
-                      acc)
-                    (conj acc valid))))
-        (catch Exception ex (conj acc (.getMessage ex)))))))
+      (try (cond (map? validator) (if (map? value)
+                                    (-validate value validator options)
+                                    {:key-invalid :map-expected})
+                 (keyword? validator) (-validate value (find-schema validator) options)
+                 :else (let [{:keys [ok? message]
+                              :or   {ok? true message index}} ((:interpreter options) (validator value))]
+                         (if ok?
+                           acc
+                           (-proceed (conj acc (if (nil? message) index message)) (:stop-on-first-error? options)))))
+           (catch Exception ex (conj acc (.getMessage ex)))))))
 
 (defn- -singular
   [value validators required? options]
@@ -114,14 +90,15 @@
 (defn- -validate-field
   [coll schema options]
   (fn [acc field]
-    (let [failed (-validate-value (get coll field) (field schema) options)]
+    (let [value (get coll field)
+          failed (if (and (:skip-nested? options) (map? value)) [] (-validate-value (get coll field) (field schema) options))]
       (erroneous? failed (-proceed (merge acc {field failed}) (:stop-on-first-error? options)) acc))))
 
 (defn- -validate-fields
   [coll schema options]
   (reduce (-validate-field coll schema options) {} (keys schema)))
 
-(defn -validate-excess-fields
+(defn- -validate-excess-fields
   [coll schema options]
   (if-not (:ignore-excess-keys? options)
     (let [unknown-keys (apply dissoc coll (keys schema))]
@@ -147,6 +124,52 @@
         {:schema-invalid :missing}
         (-validate coll schema options)))))
 
+(defn default-interpreter
+  "Default interpreter - only boolean true values considered as success for validator"
+  [value]
+  (cond (true? value) {:ok? true}
+        (false? value) {:ok? false}
+        :else {:ok? false :message value}))
+
+(defrecord Options
+  [stop-on-first-error? ignore-excess-keys? verbose? skip-nested? interpreter])
+
+(defn options
+  "Builder for options"
+  [& {:keys [stop-on-first-error? ignore-excess-keys? verbose? skip-nested? interpreter]
+      :or   {stop-on-first-error? true
+             ignore-excess-keys?  true
+             verbose?             true
+             skip-nested?         false
+             interpreter          default-interpreter}}]
+  (->Options stop-on-first-error? ignore-excess-keys? verbose? skip-nested? interpreter))
+
+(defn register-schema
+  "Register `schema` in a registry, it then can be access via provided `alias`. Schema is validated before being inserted.
+  `ignore-errors?` flag is used to amend schema validation upon adding to registry, use it iff something is broken withing validation process"
+  ([alias schema]
+   (register-schema alias schema false))
+  ([alias schema ignore-errors?]
+   (if-not (keyword? alias)
+     {:alias-invalid :not-a-keyword}
+     (let [schema-validation (if ignore-errors? [] (validate-schema schema))]
+       (erroneous? schema-validation {:schema-invalid schema-validation} (-register-schema alias schema))))))
+
+(defn unregister-schema
+  "Unregisters `schema` from registry making it unavailable"
+  [alias]
+  (alter-var-root (var *schemas*) dissoc alias))
+
+(defn find-schema
+  "Finds `schema` in schema registry"
+  [alias]
+  (alias *schemas*))
+
+(defn reset-schemas
+  "Clears all registered schemas"
+  []
+  (alter-var-root (var *schemas*) {}))
+
 (defn validate
   "Validates provided structure against `schema`. Schema can be alias. Returns a map of keys that are erroneous.
 
@@ -166,9 +189,9 @@
   {:value :invalid :validators [\"this value is invalid\"]}
   ```
 
-  See also: [[validate-schema]]"
+  See also: [[validate-schema]] [[valid?]]"
   ([coll schema]
-   (validate coll schema (Options. true true true)))
+   (validate coll schema (options)))
   ([coll schema options]
    (let [result (-validation-process coll schema options)]
      (if (:verbose? options)
@@ -176,9 +199,23 @@
        (empty? result)))))
 
 (defn valid?
-  "Quickly tests if provided `col` is valid, schema can be alias"
+  "Quickly tests if provided `col` is valid, schema can be alias
+
+  **Example**
+  ```clojure
+
+  (valid? {:key 1} {:key int?})
+  ;=> true
+
+  (valid? {:key \"1\"} {:key int?})
+  ;=> false
+
+  ```
+
+  See also: [[validate]]"
   [coll schema]
-  (validate coll schema (Options. true false false)))
+  (validate coll schema (options {:ignore-excess-keys? false
+                                  :verbose?            false})))
 
 (defn validate-schema
   "Validates provided schema for correctness. Returns a map of keys that are erroneous.
@@ -202,6 +239,7 @@
     (reduce-kv
       (fn [acc key value]
         (let [value (if (map? value) value {:validators value})
-              result (-validate value schema-schema (Options. false false true))]
+              result (-validate value schema-schema (options {:stop-on-first-error? false
+                                                              :ignore-excess-keys?  false}))]
           (erroneous? result (assoc acc key result) acc)))
       {} schema)))

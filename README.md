@@ -1,11 +1,16 @@
 # livadator
 
 [![Build Status][gh-actions-badge]][gh-actions]
+[![Clojars Project][cj-publish-badge]][cj-publish]
 
 _**[li-va-datór]**_ - library for data structure validation.
 
 >Schema-driven validation entails that each structure can incorporate yet another validating structure.
 <div style="text-align: right"><i>chatGPT</i></div>
+
+## What is li-va-datór
+It's a library for data structure validation. It can validate maps, vectors, lists, sets... It checks nested values too.
+To do that this library uses **schema**, a map describing testing data structure in specific format.
 
 ### Why not _clojure_/spec then?
 It's rather complex. Personally, I do not see it fit my pet projects at all.
@@ -28,7 +33,7 @@ This lib provided a lot of second and is the tool I actually use instead of _clo
 **Leiningen**
 Add to dependencies:
 ```clojure
-[io.github.yokalona/livadator "1.0.0"]
+[io.github.yokalona/livadator "1.1.0"]
 ```
 **in REPL**
 ```clojure
@@ -83,7 +88,7 @@ Validator is a function, that is executed against values to check if value is co
 There are two types of validators, actually.
 
 #### Simple
-Returns true if value is correct and false if its not. In report it will be shown as an id.
+Returns true if value is correct and false if it is not. In report, it will be shown as an id.
 
 ```clojure
 (validate {:key 1} {:key {:validators (fn [value] (< value 2))}})
@@ -200,10 +205,10 @@ Using the same livadator schema one can describe schema of all schemas:
 
 * **required?** is not actually required, is singular and should be boolean.
 * **multiple?** is not actually multiple, is not required and should be boolean.
-* **validators** is either multiple or singular, is required and should be either a valid schema or just not nil.
+* **validators** are either multiple or singular, is required and should be either a valid schema or just not nil.
 
 ## Output
-A map of all failed keys and a index of failed validators.
+A map of all failed keys and an index of failed validators.
 
 #### For singular value
 ```clojure
@@ -233,11 +238,19 @@ Only failed values with according validators is shown
                                   :validators [0]}}}}
 ```
 
+## Interpreter
+Simple and complex validators return value can be interpreter differently by using specific interpreter. However interpreter have to follow specific input->output contract:
+1. Value is and input(Additional input might be added in the future)
+2. Output should fill this map: `{:ok? <RESULT> :message <CUSTOM MESSAGE>}`, where:
+   1. **ok?** is a result of custom interpreter, meaning true as everything fine, and false as opposite
+   2. **message** a custom message that will be used instead of validator output.
+
 ## Special options
 There are two very special modes:
 * **stop-on-first-error?** will stop on very first failed validator it encounters, saves time, but doesn't provide full report
 * **ignore-not-in-schema?** will ignore every key, that is not specified in schema, i.e. will not fail on any key not in schema, which is less strict, but will not show errors in non required fields names
 * **verbose?** will return full error report instead of just true/false
+* **skip-nested?** will skip any nested keys, i.e. will not follow deeper than first level of map
 
 ## Complex example
 ```clojure
@@ -267,7 +280,7 @@ There are two very special modes:
                                                               :validators int?}}}}}
            :a-9  {:multiple? false :validators int?}
            :a-10 {:multiple? true :validators int?}}
-          (Options. (dont stop-on-first-error?) (dont ignore-not-in-schema?)))
+          (options {:stop-on-first-error? :ignore-not-in-schema?}))
 
 ;=>
 {:a-5  {:value      nil,
@@ -302,18 +315,22 @@ Cons:
 1. There are tons of such libraries already
 
 ### Future plans
-1. Publish this into clojars, duh!
+1. ✅ Publish this into clojars, duh!
 2. ✅ Schema registry
    1. ✅ Aliases
    2. ✅ Nested aliases
 3. Add more options, such as:
-    1. Parallel execution
-    2. Complex validation
-    3. ✅ Verbose
-4. Add cool looking logs and several levels of logging
-5. Add context, for validations like "If key presents then this key should be also present"
+   1. Parallel execution
+   2. Complex validation
+   3. ✅ Verbose
+   4. ✅ Skip nested
+4. ✅ Is validator succeeded or not determining function
+5. Add cool looking logs and several levels of logging
+6. ✅ With default options function
 
 ## Happy using
 
 [gh-actions-badge]: https://github.com/yokalona/livadator/workflows/ci/badge.svg
 [gh-actions]: https://github.com/yokalona/livadator/actions
+[cj-publish-badge]: https://img.shields.io/clojars/v/io.github.yokalona/livadator.svg
+[cj-publish]: https://clojars.org/io.github.yokalona/livadator

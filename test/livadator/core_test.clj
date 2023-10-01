@@ -1,8 +1,6 @@
 (ns livadator.core-test
-  (:require [clojure.test :refer :all]
-            [livadator.core :refer :all]
-            [clojure.pprint :refer :all])
-  (:import (livadator.core Options)))
+  (:require [clojure.test :refer [deftest is testing]]
+            [livadator.core :refer [options find-schema register-schema reset-schemas unregister-schema valid? validate validate-schema]]))
 
 (deftest validate-schema-test
   (testing "Empty schema has no error"
@@ -47,7 +45,6 @@
   (testing "But this one is definitely valid"
     (is (= {} (validate-schema {:key {:validators {:another-key int?}}})))))
 
-
 (deftest validate-test
   (testing "Validating with invalid schema is not possible"
     (is (= {:schema-invalid {:key {:validators {:value nil, :validators [:missing]}}}} (validate {} {:key {}})))
@@ -78,7 +75,8 @@
                   {:validators [2] :value 3}]}
            (validate {:key [-3 -2 -1 0 1 2 3]}
                      {:key [int? (partial < 2) (partial > 0)]}
-                     (Options. false false true)))))
+                     (options {:stop-on-first-error? false
+                               :ignore-excess-keys?  false})))))
   (testing "Nested key validation"
     (is (= {} (validate {:key {:another-key 1}} {:key {:validators {:another-key int?}}})))
     (is (= {} (validate {:key {:another-key "1"}} {:key {:validators {:another-key string?}}})))
@@ -115,10 +113,10 @@
            (validate [1 2 3] {:validators [int? (partial < 2)]})))
     (is (= [{:value 1 :validators [1]}
             {:value 2 :validators [1]}]
-           (validate [1 2 3] {:validators [int? (partial < 2)]} (Options. false true true))))
+           (validate [1 2 3] {:validators [int? (partial < 2)]} (options {:stop-on-first-error? false}))))
     (is (= [{:value 1 :validators [1]}
             {:value 2 :validators [1]}]
-           (validate [1 2 3] {:validators [int? (partial < 2)]} (Options. false true true)))))
+           (validate [1 2 3] {:validators [int? (partial < 2)]} (options {:stop-on-first-error? false})))))
   (testing "Singular"
     (is (= {} (validate 1 {:validators int?})))
     (is (= {:value 2 :validators [0]} (validate 2 {:validators (partial < 2)})))))
@@ -161,7 +159,7 @@
                                             :value      "1"}}
                   :value      {:nested-key "1"}}}
            (validate {:key {:nested-key "1"}} :schema)))
-    (testing "as aslias as not, same err"
+    (testing "as alias as not, same err"
       (is (= (validate {:key {:nested-key "1"}} :schema)
              (validate {:key {:nested-key "1"}} {:key {:validators {:nested-key int?}}}))))
     (testing "cant even register non existing nested alias"
@@ -175,20 +173,46 @@
   (testing "Stop on first error"
     (is (= [{:value 0 :validators [0]}
             {:value 1 :validators [0]}]
-           (validate [0 1 2 3] {:validators (partial < 1)} (Options. false true true))))
+           (validate [0 1 2 3] {:validators (partial < 1)} (options {:stop-on-first-error? false}))))
     (is (= [{:value 0 :validators [0]}]
-           (validate [0 1 2 3] {:validators (partial < 1)} (Options. true true true)))))
+           (validate [0 1 2 3] {:validators (partial < 1)} (options)))))
   (testing "Ignore excess keys"
-    (is (= {} (validate {:a 1 :b 2} {:a int?} (Options. true true true))))
-    (is (= {:unknown-keys {:b 2}} (validate {:a 1 :b 2} {:a int?} (Options. true false true)))))
+    (is (= {} (validate {:a 1 :b 2} {:a int?} (options))))
+    (is (= {:unknown-keys {:b 2}} (validate {:a 1 :b 2} {:a int?} (options {:ignore-excess-keys? false})))))
   (testing "verbose"
     (is (= [{:value 0 :validators [0]}
             {:value 1 :validators [0]}]
-           (validate [0 1 2 3] {:validators (partial < 1)} (Options. false true true))))
-    (is (false? (validate [0 1 2 3] {:validators (partial < 1)} (Options. false true false))))
-    (is (true? (validate [0 1 2 3] {:validators int?} (Options. false true false))))))
+           (validate [0 1 2 3] {:validators (partial < 1)} (options {:stop-on-first-error? false}))))
+    (is (false? (validate [0 1 2 3] {:validators (partial < 1)} (options {:stop-on-first-error? false
+                                                                          :verbose?             false}))))
+    (is (true? (validate [0 1 2 3] {:validators int?} (options {:stop-on-first-error? false
+                                                                :verbose?             false})))))
+  (testing "skip nested"
+    (is (= {} (validate {:key {:nested-key :invalid}}
+                        {:key {:validators {:nested-key int?}}}
+                        (options {:skip-nested? true}))))
+    (is (= {:key {:validators {:key-invalid :map-expected}
+                  :value      1}}
+           (validate {:key 1}
+                     {:key {:validators {:nested-key int?}}}
+                     (options {:skip-nested? true}))))
+    (is (= {:key {:validators {:nested-key {:validators [0]
+                                            :value      :invalid}}
+                  :value      {:nested-key :invalid}}}
+           (validate {:key {:nested-key :invalid}}
+                     {:key {:validators {:nested-key int?}}})))))
 
 (deftest valid?-test
   (testing "valid is just true-false"
     (is (false? (valid? [0 1 2 3] {:validators (partial < 1)})))
     (is (true? (valid? [0 1 2 3] {:validators int?})))))
+
+(deftest interpreter-test
+  (testing "Custom logging interpreter"
+    (let [logger (atom [])]
+      (validate [0 1 2 3] {:validators identity}
+                (options {:interpreter (fn [value] (swap! logger conj value) {:ok? true})}))
+      (is (= [0 1 2 3] @logger))))
+  (testing "Custom always fail interpreter"
+    (is (= [{:value 0 :validators [0]}] (validate [0 1 2 3] {:validators int?}
+                                                  (options {:interpreter (fn [_] {:ok? false})}))))))
