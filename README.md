@@ -31,6 +31,7 @@ This lib provided a lot of second and is the tool I actually use instead of _clo
 
 ## Usage
 **Leiningen**
+
 Add to dependencies:
 ```clojure
 [io.github.yokalona/livadator "1.1.0"]
@@ -213,7 +214,7 @@ A map of all failed keys and an index of failed validators.
 #### For singular value
 ```clojure
 {:key [{:value 3, :validators [1]} {:value 4, :validators [1]}]}
-;>
+;=>
 {:value "0" :validators [0 1]}
 ```
 
@@ -222,7 +223,7 @@ A map of all failed keys and an index of failed validators.
 (validate {:key [0 1 2 3 4]} {:key {:multiple? true :validators [int? (partial >= 2)]}}
           (dont stop-on-first-error?)
           (dont ignore-not-in-schema?))
-;>
+;=>
 {:key [{:value 3, :validators [1]} 
        {:value 4, :validators [1]}]}
 ```
