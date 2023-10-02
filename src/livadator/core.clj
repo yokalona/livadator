@@ -85,18 +85,18 @@
                    allow-empty? (:always-allow-empty? options)}
             :as   schema} validators
            validators (or validators schema)]
-       (if (sequential? value)
-         (if (and (empty? value) (not allow-empty?))
-           {:value value :validators [:empty]}
-           (-validate-multiple value validators multiple? options))
-         (-validate-singular value validators required? multiple? options)))
+       (if (and (coll? value) (empty? value) (not allow-empty?))
+         {:value value :validators [:empty]}
+         (if (sequential? value)
+           (-validate-multiple value validators multiple? options)
+           (-validate-singular value validators required? multiple? options))))
      (recur value {:validators (-sequential validators)} options))))
 
 (defn- -validate-field
   [coll schema options]
   (fn [acc field]
     (let [value (get coll field)
-          failed (if (and (:skip-nested? options) (map? value)) [] (-validate-value (get coll field) (field schema) options))]
+          failed (if (and (:skip-nested? options) (map? value)) [] (-validate-value value (field schema) options))]
       (erroneous? failed (-proceed (merge acc {field failed}) (:stop-on-first-error? options)) acc))))
 
 (defn- -validate-fields
@@ -146,7 +146,7 @@
                    :verbose?             true
                    :skip-nested?         false
                    :always-required?     false
-                   :always-allow-empty?  true
+                   :always-allow-empty?  false
                    :interpreter          default-interpreter})
 
 (def ^:dynamic ^:private *default-options* default-options)

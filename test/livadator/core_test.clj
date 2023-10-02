@@ -11,7 +11,7 @@
 (use-fixtures :each reset-everything)
 
 (deftest validate-schema-test
-  (testing "Empty schema has no error"
+  (testing "Empty schema has error"
     (is (= {:key {:validators {:value {}, :validators [:empty]}}} (validate-schema {}))))
   (testing "Empty schema for a key should have 'validators' block"
     (is (= {:key {:validators {:value nil, :validators [:missing]}}} (validate-schema {:key {}}))))
@@ -211,7 +211,19 @@
     (is (= {} (validate {} {:key {:validators int?}})))
     (is (= {:key {:validators [:missing]
                   :value      nil}}
-           (validate {} {:key {:validators int?}} (options {:always-required? true}))))))
+           (validate {} {:key {:validators int?}} (options {:always-required? true})))))
+  (testing "always-allow-empty"
+    (is (= {:key {:validators [:empty]
+                  :value      []}}
+           (validate {:key []}
+                     {:key {:validators int? :allow-empty? false}})))
+    (is (= {:key {:validators [:empty]
+                  :value      {}}}
+           (validate {:key {}}
+                     {:key {:validators   {:another-key int?}
+                            :allow-empty? false}})))
+    (is (= {} (validate {:key []} {:key {:validators   int?
+                                         :allow-empty? true}})))))
 
 (deftest valid?-test
   (testing "valid is just true-false"
