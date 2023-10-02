@@ -15,36 +15,30 @@
     (is (= {:key {:validators {:value {}, :validators [:empty]}}} (validate-schema {}))))
   (testing "Empty schema for a key should have 'validators' block"
     (is (= {:key {:validators {:value nil, :validators [:missing]}}} (validate-schema {:key {}}))))
-  (testing "But empty vector as a validators is ok"
-    (is (= {} (validate-schema {:key {:validators []}}))))
+  (testing "And empty vector as a validators is not ok"
+    (is (= {:key {:validators {:value [] :validators [:empty]}}} (validate-schema {:key {:validators []}}))))
   (testing "Valid validators"
     (is (= {} (validate-schema {:key int?})))
     (is (= {} (validate-schema {:key {:validators int?}})))
     (is (= {} (validate-schema {:key {:validators [int?]}}))))
-  (testing "Required? and Missing? are boolean and not required"
-    (is (= {} (validate-schema {:key {:required?  true
-                                      :validators []}})))
-    (is (= {} (validate-schema {:key {:multiple?  true
-                                      :validators []}})))
-    (is (= {:key {:required? {:validators [0]
-                              :value      :invalid-value}}}
-           (validate-schema {:key {:required?  :invalid-value
-                                   :validators []}})))
-    (is (= {:key {:multiple? {:validators [0]
-                              :value      :invalid-value}}}
-           (validate-schema {:key {:multiple?  :invalid-value
-                                   :validators []}})))
-    (is (= {:key {:multiple? {:validators [0]
-                              :value      :invalid-multiple}
-                  :required? {:validators [0]
-                              :value      :invalid-required}}}
+  (testing "Required? and Missing? and Allow-empty? are boolean and not required"
+    (is (= {} (validate-schema {:key {:required? true :validators int?}})))
+    (is (= {} (validate-schema {:key {:multiple? true :validators int?}})))
+    (is (= {:key {:required? {:validators [0] :value :invalid-value}}}
+           (validate-schema {:key {:required? :invalid-value :validators int?}})))
+    (is (= {:key {:multiple? {:validators [0] :value :invalid-value}}}
+           (validate-schema {:key {:multiple? :invalid-value :validators int?}})))
+    (is (= {:key {:multiple? {:validators [0] :value :invalid-multiple}
+                  :required? {:validators [0] :value :invalid-required}}}
            (validate-schema {:key {:multiple?  :invalid-multiple
                                    :required?  :invalid-required
-                                   :validators []}}))))
+                                   :validators int?}})))
+    (is (= {} (validate-schema {:key {:allow-empty? true :validators int?}})))
+    (is (= {:key {:allow-empty? {:validators [0] :value :invalid-value}}}
+           (validate-schema {:key {:allow-empty? :invalid-value :validators int?}}))))
   (testing "Excess keys are not allowed for schema"
     (is (= {:key {:unknown-keys {:excess-key :value}}}
-           (validate-schema {:key {:validators []
-                                   :excess-key :value}}))))
+           (validate-schema {:key {:validators int? :excess-key :value}}))))
   (testing "Validating nested schema, which is, so happens, invalid"
     (is (= {:key {:validators {:value      {:another-key {}}
                                :validators [{:another-key {:validators {:value      nil,
@@ -71,7 +65,7 @@
                                                                "Value is less than 2"
                                                                true))}}))))
   (testing "Multiple key validation"
-    (is (= {} (validate {:key []} {:key int?})))
+    (is (= {} (validate {:key []} {:key {:validators int? :allow-empty? true}})))
     (is (= {} (validate {:key [0 1 2 3]} {:key int?})))
     (is (= {:key [{:value false :validators [0]}]} (validate {:key [0 1 2 3 false]} {:key int?})))
     (is (= {:key [{:validators [1] :value -3}
@@ -111,7 +105,11 @@
                                              :validators int?}})))
     (testing "If no multiple? key might be either way"
       (is (= {} (validate {:key [0 1 2 3]} {:key {:validators int?}})))
-      (is (= {} (validate {:key 0} {:key {:validators int?}}))))))
+      (is (= {} (validate {:key 0} {:key {:validators int?}}))))
+    (testing "Not empty"
+      (is (= {} (validate {:key []} {:key {:validators int? :allow-empty? true}})))
+      (is (= {:key {:validators [:empty]
+                    :value      []}} (validate {:key []} {:key {:validators int? :allow-empty? false}}))))))
 
 (deftest validate-value-test
   (testing "Multiple"

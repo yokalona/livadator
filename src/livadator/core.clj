@@ -18,18 +18,22 @@
 (defmacro ^:private erroneous? [data action otherwise] `(if-not (empty? ~data) ~action ~otherwise))
 
 (def ^:private schema-schema
-  {:required?  {:required?  false
-                :multiple?  false
-                :validators boolean?}
-   :multiple?  {:required?  false
-                :multiple?  false
-                :validators boolean?}
-   :validators {:required?  true
-                :validators (fn [validators]
-                              (cond (map? validators) (let [validation (validate-schema validators)]
-                                                        (erroneous? validation validation true))
-                                    (keyword? validators) (if (contains? *schemas* validators) true {:schema-invalid :missing})
-                                    :else (not (nil? validators))))}})
+  {:required?    {:required?  false
+                  :multiple?  false
+                  :validators boolean?}
+   :multiple?    {:required?  false
+                  :multiple?  false
+                  :validators boolean?}
+   :allow-empty? {:required   false
+                  :multiple?  false
+                  :validators boolean?}
+   :validators   {:required?    true
+                  :allow-empty? false
+                  :validators   (fn [validators]
+                                  (cond (map? validators) (let [validation (validate-schema validators)]
+                                                            (erroneous? validation validation true))
+                                        (keyword? validators) (if (contains? *schemas* validators) true {:schema-invalid :missing})
+                                        :else (not (nil? validators))))}})
 
 (defn- -validate-value-exact
   [value required? options]
@@ -76,12 +80,15 @@
 (defn- -validate-value
   ([value validators options]
    (if (map? validators)
-     (let [{:keys [required? multiple? validators]
-            :or   {required? (:always-required? options)}
+     (let [{:keys [required? multiple? allow-empty? validators]
+            :or   {required?    (:always-required? options)
+                   allow-empty? (:always-allow-empty? options)}
             :as   schema} validators
            validators (or validators schema)]
        (if (sequential? value)
-         (-validate-multiple value validators multiple? options)
+         (if (and (empty? value) (not allow-empty?))
+           {:value value :validators [:empty]}
+           (-validate-multiple value validators multiple? options))
          (-validate-singular value validators required? multiple? options)))
      (recur value {:validators (-sequential validators)} options))))
 
@@ -131,7 +138,7 @@
           :else {:ok? false :message value})))
 
 (defrecord Options
-  [stop-on-first-error? ignore-excess-keys? verbose? skip-nested? always-required? interpreter])
+  [stop-on-first-error? ignore-excess-keys? verbose? skip-nested? always-required? always-allow-empty? interpreter])
 
 (def ^:private
   default-options {:stop-on-first-error? true
@@ -139,6 +146,7 @@
                    :verbose?             true
                    :skip-nested?         false
                    :always-required?     false
+                   :always-allow-empty?  true
                    :interpreter          default-interpreter})
 
 (def ^:dynamic ^:private *default-options* default-options)
@@ -152,12 +160,14 @@
                            :verbose?             boolean?
                            :skip-nested?         boolean?
                            :always-required?     boolean?
+                           :always-allow-empty?  boolean?
                            :interpreter          fn?}
                           (map->Options {:stop-on-first-error? false
                                          :ignore-excess-keys?  true
                                          :verbose?             true
                                          :always-required?     false
                                          :skip-nested?         false
+                                         :always-allow-empty?  true
                                          :interpreter          default-interpreter}))]
     (if (empty? errors)
       (alter-var-root (var *default-options*) merge options)
@@ -171,9 +181,9 @@
 (defn options
   "Builder for options"
   [& options]
-  (let [{:keys [stop-on-first-error? ignore-excess-keys? verbose? skip-nested? always-required? interpreter]}
+  (let [{:keys [stop-on-first-error? ignore-excess-keys? verbose? skip-nested? always-required? always-allow-empty? interpreter]}
         (merge *default-options* (first options))]
-    (->Options stop-on-first-error? ignore-excess-keys? verbose? skip-nested? always-required? interpreter)))
+    (->Options stop-on-first-error? ignore-excess-keys? verbose? skip-nested? always-required? always-allow-empty? interpreter)))
 
 (defn register-schema
   "Register `schema` in a registry, it then can be access via provided `alias`. Schema is validated before being inserted.
