@@ -252,6 +252,10 @@ There are two very special modes:
 * **ignore-not-in-schema?** will ignore every key, that is not specified in schema, i.e. will not fail on any key not in schema, which is less strict, but will not show errors in non required fields names
 * **verbose?** will return full error report instead of just true/false
 * **skip-nested?** will skip any nested keys, i.e. will not follow deeper than first level of map
+* **always-required?** will interpreter amended :required? key from schema as true, instead of false by default
+
+## Overriding default behaviour
+`override-default` is a function allowing to override default values for all options. It can change default value for any option that is used withing the livadator without screwing with internals.
 
 ## Complex example
 ```clojure
@@ -310,10 +314,11 @@ Pros:
 1. It's simple
 2. It's easy
 3. ????
-4. Use it already?
+4. Use it already!
 
 Cons:
 1. There are tons of such libraries already
+2. There is clojure/spec
 
 ### Future plans
 1. ✅ Publish this into clojars, duh!
@@ -328,6 +333,7 @@ Cons:
 4. ✅ Is validator succeeded or not determining function
 5. Add cool looking logs and several levels of logging
 6. ✅ With default options function
+7. ✅ Override default values for required and options
 
 ## Happy using
 

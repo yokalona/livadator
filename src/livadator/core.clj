@@ -28,9 +28,7 @@
                 :validators (fn [validators]
                               (cond (map? validators) (let [validation (validate-schema validators)]
                                                         (erroneous? validation validation true))
-                                    (keyword? validators) (if (contains? *schemas* validators)
-                                                            true
-                                                            {:schema-invalid :missing})
+                                    (keyword? validators) (if (contains? *schemas* validators) true {:schema-invalid :missing})
                                     :else (not (nil? validators))))}})
 
 (defn- -validate-value-exact
@@ -79,7 +77,7 @@
   ([value validators options]
    (if (map? validators)
      (let [{:keys [required? multiple? validators]
-            :or   {required? false}
+            :or   {required? (:always-required? options)}
             :as   schema} validators
            validators (or validators schema)]
        (if (sequential? value)
@@ -126,23 +124,56 @@
 
 (defn default-interpreter
   "Default interpreter - only boolean true values considered as success for validator"
-  [value]
-  (cond (true? value) {:ok? true}
-        (false? value) {:ok? false}
-        :else {:ok? false :message value}))
+  [& value]
+  (let [value (first value)]
+    (cond (true? value) {:ok? true}
+          (false? value) {:ok? false}
+          :else {:ok? false :message value})))
 
 (defrecord Options
-  [stop-on-first-error? ignore-excess-keys? verbose? skip-nested? interpreter])
+  [stop-on-first-error? ignore-excess-keys? verbose? skip-nested? always-required? interpreter])
+
+(def ^:private
+  default-options {:stop-on-first-error? true
+                   :ignore-excess-keys?  true
+                   :verbose?             true
+                   :skip-nested?         false
+                   :always-required?     false
+                   :interpreter          default-interpreter})
+
+(def ^:dynamic ^:private *default-options* default-options)
+
+(defn override-defaults
+  "Overrides default options"
+  [options]
+  (let [errors (-validate options
+                          {:stop-on-first-error? boolean?
+                           :ignore-excess-keys?  boolean?
+                           :verbose?             boolean?
+                           :skip-nested?         boolean?
+                           :always-required?     boolean?
+                           :interpreter          fn?}
+                          (map->Options {:stop-on-first-error? false
+                                         :ignore-excess-keys?  true
+                                         :verbose?             true
+                                         :always-required?     false
+                                         :skip-nested?         false
+                                         :interpreter          default-interpreter}))]
+    (if (empty? errors)
+      (alter-var-root (var *default-options*) merge options)
+      errors)))
+
+(defn reset-defaults
+  "Resets default options to its original values"
+  []
+  (override-defaults default-options))
 
 (defn options
   "Builder for options"
-  [& {:keys [stop-on-first-error? ignore-excess-keys? verbose? skip-nested? interpreter]
-      :or   {stop-on-first-error? true
-             ignore-excess-keys?  true
-             verbose?             true
-             skip-nested?         false
-             interpreter          default-interpreter}}]
-  (->Options stop-on-first-error? ignore-excess-keys? verbose? skip-nested? interpreter))
+  [& options]
+  (let [{:keys [stop-on-first-error? ignore-excess-keys? verbose? skip-nested? always-required? interpreter]}
+        (merge *default-options* (first options))]
+    (->Options stop-on-first-error? ignore-excess-keys? verbose? skip-nested? always-required? interpreter)))
 
 (defn register-schema
   "Register `schema` in a registry, it then can be access via provided `alias`. Schema is validated before being inserted.
@@ -191,7 +222,7 @@
 
   See also: [[validate-schema]] [[valid?]]"
   ([coll schema]
-   (validate coll schema (options)))
+   (validate coll schema (map->Options *default-options*)))
   ([coll schema options]
    (let [result (-validation-process coll schema options)]
      (if (:verbose? options)
@@ -214,8 +245,12 @@
 
   See also: [[validate]]"
   [coll schema]
-  (validate coll schema (options {:ignore-excess-keys? false
-                                  :verbose?            false})))
+  (validate coll schema (map->Options {:stop-on-first-error? true
+                                       :ignore-excess-keys?  false
+                                       :verbose?             false
+                                       :skip-nested?         false
+                                       :always-required?     false
+                                       :interpreter          default-interpreter})))
 
 (defn validate-schema
   "Validates provided schema for correctness. Returns a map of keys that are erroneous.
@@ -239,7 +274,11 @@
     (reduce-kv
       (fn [acc key value]
         (let [value (if (map? value) value {:validators value})
-              result (-validate value schema-schema (options {:stop-on-first-error? false
-                                                              :ignore-excess-keys?  false}))]
+              result (-validate value schema-schema (map->Options {:stop-on-first-error? false
+                                                                   :ignore-excess-keys?  false
+                                                                   :verbose?             true
+                                                                   :skip-nested?         false
+                                                                   :always-required?     false
+                                                                   :interpreter          default-interpreter}))]
           (erroneous? result (assoc acc key result) acc)))
       {} schema)))

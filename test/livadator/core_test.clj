@@ -1,6 +1,14 @@
 (ns livadator.core-test
-  (:require [clojure.test :refer [deftest is testing]]
-            [livadator.core :refer [options find-schema register-schema reset-schemas unregister-schema valid? validate validate-schema]]))
+  (:require [clojure.test :refer [deftest is testing use-fixtures]]
+            [livadator.core :refer [reset-defaults override-defaults options find-schema
+                                    register-schema reset-schemas unregister-schema valid?
+                                    validate validate-schema]]))
+(defn reset-everything [f]
+  (reset-defaults)
+  (reset-schemas)
+  (f))
+
+(use-fixtures :each reset-everything)
 
 (deftest validate-schema-test
   (testing "Empty schema has no error"
@@ -200,7 +208,12 @@
                                             :value      :invalid}}
                   :value      {:nested-key :invalid}}}
            (validate {:key {:nested-key :invalid}}
-                     {:key {:validators {:nested-key int?}}})))))
+                     {:key {:validators {:nested-key int?}}}))))
+  (testing "always-required"
+    (is (= {} (validate {} {:key {:validators int?}})))
+    (is (= {:key {:validators [:missing]
+                  :value      nil}}
+           (validate {} {:key {:validators int?}} (options {:always-required? true}))))))
 
 (deftest valid?-test
   (testing "valid is just true-false"
@@ -216,3 +229,30 @@
   (testing "Custom always fail interpreter"
     (is (= [{:value 0 :validators [0]}] (validate [0 1 2 3] {:validators int?}
                                                   (options {:interpreter (fn [_] {:ok? false})}))))))
+
+(deftest override-default-test
+  (testing "Stop on first error"
+    (reset-defaults)
+    (override-defaults {:stop-on-first-error? false})
+    (is (= [{:value 0 :validators [0]}
+            {:value 1 :validators [0]}]
+           (validate [0 1 2 3] {:validators (partial < 1)}))))
+  (testing "Ignore excess keys"
+    (reset-defaults)
+    (override-defaults {:ignore-excess-keys? false})
+    (is (= {:unknown-keys {:b 2}} (validate {:a 1 :b 2} {:a int?}))))
+  (testing "verbose"
+    (reset-defaults)
+    (override-defaults {:verbose? false})
+    (is (true? (validate [0 1 2 3] {:validators int?}))))
+  (testing "skip nested"
+    (reset-defaults)
+    (override-defaults {:skip-nested? true})
+    (is (= {} (validate {:key {:nested-key :invalid}}
+                        {:key {:validators {:nested-key int?}}}))))
+  (testing "always-required"
+    (reset-defaults)
+    (override-defaults {:always-required? true})
+    (is (= {:key {:validators [:missing]
+                  :value      nil}}
+           (validate {} {:key {:validators int?}})))))
