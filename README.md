@@ -16,12 +16,6 @@ To do that this library uses **schema**, a map describing testing data structure
 ### Why not _clojure_/spec then?
 
 It's rather complex. Personally, I do not see it fit my pet projects at all.
-First of all its semantics is a set of a functions, rather the same data structure you're validating.
-Defining types, requirements and all that jazz instead of just validating functions is challenging, at least for me.
-Secondly, it requires some amount of research, like: how to define a range for a value, how to propagate custom error
-message if it's even possible?
-
-At the end of the day, the only thing that actually matters is data.
 
 As one once told:
 > Use tools that fit your needs
@@ -30,7 +24,7 @@ and:
 > It's not the victory we crave, but the fun along the way. Victory is just a perk, the reminder, where the road is and
 > that the end will eventually come.
 
-This lib provided a lot of second and is the tool I actually use instead of _clojure_/spec
+This lib provided a lot of second, enjoy it as I did. Check Disclaimer at the end of this doc.
 
 ## Usage
 
@@ -39,7 +33,7 @@ This lib provided a lot of second and is the tool I actually use instead of _clo
 Add to dependencies:
 
 ```clojure
-[io.github.yokalona/livadator "1.1.0"]
+[io.github.yokalona/livadator "1.2.0"]
 ```
 
 **in REPL**
@@ -411,6 +405,16 @@ Cons:
 5. Add cool looking logs and several levels of logging
 6. ✅ With default options function
 7. ✅ Override default values for required and options
+
+## Disclaimer
+Personally, I like to create new stuff to understand how old stuff works. It is my prime motivation, just curiosity and fun.
+This project might change a lot in the future or just became buried, long-lost memories. Anyway, I had my fun, so you do you and don't forget to have fun as well.
+
+And as one once told:
+
+> **I see ya, when I see ya**
+
+<div style="text-align: right"><i>(c) Baron Ryan</i></div>
 
 ## Happy using
 
